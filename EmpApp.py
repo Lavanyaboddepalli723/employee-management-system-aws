@@ -3,6 +3,8 @@ from pymysql import connections
 import os
 import boto3
 from config import *
+from PIL import Image
+import io
 
 app = Flask(__name__)
 
@@ -15,7 +17,6 @@ db_conn = connections.Connection(
     user=customuser,
     password=custompass,
     db=customdb
-
 )
 output = {}
 table = 'employee'
@@ -47,17 +48,23 @@ def AddEmp():
         return "Please select a file"
 
     try:
-
         cursor.execute(insert_sql, (emp_id, first_name, last_name, pri_skill, location))
         db_conn.commit()
         emp_name = "" + first_name + " " + last_name
-        # Uplaod image file in S3 #
-        emp_image_file_name_in_s3 = "emp-id-" + str(emp_id) + "_image_file"
+
+        # Convert image to PNG format and upload to S3
+        emp_image_file_name_in_s3 = "emp-id-" + str(emp_id) + "_image_file.png"
         s3 = boto3.resource('s3')
 
         try:
+            # Convert the image to PNG
+            img = Image.open(emp_image_file)
+            img_byte_arr = io.BytesIO()
+            img.save(img_byte_arr, format='PNG')
+            img_byte_arr.seek(0)
+
             print("Data inserted in MySQL RDS... uploading image to S3...")
-            s3.Bucket(custombucket).put_object(Key=emp_image_file_name_in_s3, Body=emp_image_file)
+            s3.Bucket(custombucket).put_object(Key=emp_image_file_name_in_s3, Body=img_byte_arr)
             bucket_location = boto3.client('s3').get_bucket_location(Bucket=custombucket)
             s3_location = (bucket_location['LocationConstraint'])
 
